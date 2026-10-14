@@ -1,0 +1,226 @@
+{
+    "name": "models-ok",
+    "description": "AI/ML API GET /v1/models, hand-minimized from a real recording (2026-10-15): 11 of the 932 published rows, chosen so the family filter is actually exercised. anthropic/claude-haiku-5-5 appears as BOTH openai/chat-completions and anthropic/messages (one chat model, two rows -> merged by id) and again as anthropic/batches (not chat); openai/gpt-6.1-sol appears as openai/chat-completions and openai/responses/submit (the openai/ prefix is not the discriminator); x-ai/grok-imagine-image-2.0 as openai/image-generations and openai/image-editing. openai/embeddings and internal/* rows must be dropped. Expect chat 3 ids from 4 rows, image 2 ids from 2 rows.",
+    "calls": [
+        {
+            "req": {
+                "method": "GET",
+                "url": "{{request.url}}"
+            },
+            "res": {
+                "status": 200,
+                "body": {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "openai/gpt-4o-mini",
+                            "info": {
+                                "releasedAt": "2024-07-18",
+                                "name": "GPT-4o Mini",
+                                "developer": "Open AI",
+                                "description": "GPT-4o Mini: Cost-efficient, advanced model for diverse AI applications.",
+                                "contextLength": 128000,
+                                "url": "https://aimlapi.com/models/chat-gpt-4o-mini",
+                                "docsUrl": "https://docs.aimlapi.com/api-references/text-models-llm/openai/gpt-4o-mini"
+                            },
+                            "type": "openai/chat-completions",
+                            "aliases": [
+                                "gpt-4o-mini"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "anthropic/claude-haiku-5-5",
+                            "info": {
+                                "releasedAt": "2026-10-07",
+                                "name": "Claude Haiku 5.5",
+                                "developer": "Anthropic",
+                                "description": "Claude Haiku 5.5 is Anthropic's fastest model for high-volume, latency-sensitive",
+                                "contextLength": 1000000,
+                                "outputMax": 128000,
+                                "isHottest": true
+                            },
+                            "type": "openai/chat-completions",
+                            "aliases": [
+                                "claude-haiku-5-5"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2",
+                                "playground:code"
+                            ]
+                        },
+                        {
+                            "id": "anthropic/claude-haiku-5-5",
+                            "info": {
+                                "releasedAt": "2026-10-07",
+                                "name": "Claude Haiku 5.5",
+                                "developer": "Anthropic",
+                                "description": "Claude Haiku 5.5 is Anthropic's fastest model for high-volume, latency-sensitive",
+                                "contextLength": 1000000,
+                                "outputMax": 128000,
+                                "isHottest": true
+                            },
+                            "type": "anthropic/messages",
+                            "aliases": [
+                                "claude-haiku-5-5"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2",
+                                "playground:code"
+                            ]
+                        },
+                        {
+                            "id": "anthropic/claude-haiku-5-5",
+                            "info": {
+                                "releasedAt": "2026-10-07",
+                                "name": "Claude Haiku 5.5",
+                                "developer": "Anthropic",
+                                "description": "Claude Haiku 5.5 is Anthropic's fastest model for high-volume, latency-sensitive",
+                                "contextLength": 1000000,
+                                "outputMax": 128000,
+                                "isHottest": true
+                            },
+                            "type": "anthropic/batches",
+                            "aliases": [
+                                "claude-haiku-5-5"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2",
+                                "playground:code"
+                            ]
+                        },
+                        {
+                            "id": "openai/gpt-6.1-sol",
+                            "info": {
+                                "releasedAt": "2026-09-29",
+                                "name": "GPT-6.1 Sol",
+                                "developer": "Open AI",
+                                "description": "GPT-6.1 model from OpenAI with near-Astra performance at a lower cost for comple",
+                                "contextLength": 1050000,
+                                "outputMax": 128000,
+                                "isHottest": true
+                            },
+                            "type": "openai/chat-completions",
+                            "aliases": [
+                                "gpt-6.1-sol"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "openai/gpt-6.1-sol",
+                            "info": {
+                                "releasedAt": "2026-09-29",
+                                "name": "GPT-6.1 Sol",
+                                "developer": "Open AI",
+                                "description": "GPT-6.1 model from OpenAI with near-Astra performance at a lower cost for comple",
+                                "contextLength": 1050000,
+                                "outputMax": 128000,
+                                "isHottest": true
+                            },
+                            "type": "openai/responses/submit",
+                            "aliases": [
+                                "gpt-6.1-sol"
+                            ],
+                            "tags": [
+                                "playground:chat",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "blackforestlabs/flux-dev",
+                            "info": {
+                                "releasedAt": "2026-06-12",
+                                "name": "FLUX.1 Dev",
+                                "developer": "Black Forest Labs",
+                                "description": "Development-oriented FLUX.1 image generation model."
+                            },
+                            "type": "openai/image-generations",
+                            "aliases": [],
+                            "tags": [
+                                "playground:image",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "x-ai/grok-imagine-image-2.0",
+                            "info": {
+                                "releasedAt": "2026-10-14",
+                                "name": "Grok Imagine Image 2.0",
+                                "developer": "X AI",
+                                "description": "Grok Imagine Image 2.0 is the second generation of the xAI image model, for imag",
+                                "docsUrl": "https://docs.aimlapi.com/api-references/image-models/xai"
+                            },
+                            "type": "openai/image-generations",
+                            "aliases": [
+                                "grok-imagine-image-2.0"
+                            ],
+                            "tags": [
+                                "playground:image",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "x-ai/grok-imagine-image-2.0",
+                            "info": {
+                                "releasedAt": "2026-10-14",
+                                "name": "Grok Imagine Image 2.0",
+                                "developer": "X AI",
+                                "description": "Grok Imagine Image 2.0 is the second generation of the xAI image model, for imag",
+                                "docsUrl": "https://docs.aimlapi.com/api-references/image-models/xai"
+                            },
+                            "type": "openai/image-editing",
+                            "aliases": [
+                                "grok-imagine-image-2.0"
+                            ],
+                            "tags": [
+                                "playground:image",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "alibaba/qwen-text-embedding-v3",
+                            "info": {
+                                "releasedAt": "2025-12-13",
+                                "name": "Qwen Text Embedding v3",
+                                "developer": "Alibaba Cloud",
+                                "description": "High-quality text embedding model with support for custom dimensions (512-1024) ",
+                                "docsUrl": "https://docs.aimlapi.com/api-references/embedding-models/alibaba-cloud/qwen-text-embedding-v3",
+                                "contextLength": 8192
+                            },
+                            "type": "openai/embeddings",
+                            "aliases": [],
+                            "tags": [
+                                "playground:embeddings",
+                                "tier:tier_2"
+                            ]
+                        },
+                        {
+                            "id": "elevenlabs/scribe_v2",
+                            "info": {
+                                "releasedAt": "2026-10-14",
+                                "name": "Scribe v2",
+                                "developer": "Elevenlabs",
+                                "description": "ElevenLabs Scribe v2 is a high-accuracy speech-to-text model for recorded audio "
+                            },
+                            "type": "internal/speech-to-text/submit",
+                            "aliases": [],
+                            "tags": [
+                                "playground:stt",
+                                "tier:tier_2"
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
