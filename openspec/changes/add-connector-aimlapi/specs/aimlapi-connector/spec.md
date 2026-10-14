@@ -136,8 +136,27 @@ chat[], image[]}`, placing a row in `chat` when its `type` is
 `openai/chat-completions` OR `anthropic/messages`, in `image` when its
 `type` is `openai/image-generations`, and nowhere otherwise — MERGING BY
 ID within each family, keeping each row's `id`, `name`, `developer`,
-`contextLength` and `docsUrl` (null where unpublished). The gateway's
-`?type=` filter SHALL NOT be exposed. `key` SHALL be a FREE `GET /key`.
+`contextLength`, `docsUrl` (null where unpublished) and `pricing`. The
+gateway's `?type=` filter SHALL NOT be exposed. `key` SHALL be a FREE
+`GET /key`.
+
+`models` SHALL pin `include=pricing` as a `z.literal` default on
+`input.schema.queryParams`, so the roster always carries the vendor's rate
+card and a caller cannot request an expansion the output is not built on.
+Each entry's `pricing` SHALL be `{currency, kind, variable, tiered,
+units[]}` plus `inputUsdPerMTok` and `outputUsdPerMTok` on chat entries and
+`usdPerImage` on image entries, where:
+
+1. `units[]` holds every unit the card prices, as
+   `{name, origin, usdPerUnit}` with `usdPerUnit = price / per`;
+2. a unit with a non-numeric `price` SHALL be DROPPED, not read as free;
+3. the named rates SHALL be the FIRST matching unit, scaled to the unit
+   the vendor publishes in (per 1M tokens for chat, per generation for
+   image), and `null` when no such unit is priced;
+4. `variable` SHALL mirror the card's own flag and `tiered` SHALL be true
+   when `thresholds[]` is non-empty, so a flat number is readable as the
+   headline rate rather than the only one;
+5. a row with no `pricing` SHALL project the same shape, empty.
 
 #### Scenario: One id published under both chat types appears once
 - **WHEN** the roster carries `anthropic/claude-haiku-5-5` as both
@@ -151,6 +170,22 @@ ID within each family, keeping each row's `id`, `name`, `developer`,
   `openai/responses/submit` rows
 - **THEN** neither appears in `chat`, while an id that ALSO has a
   `openai/chat-completions` row appears once
+
+#### Scenario: A fixed-price chat model reports both named rates
+- **WHEN** a chat row prices `token`/`provided` at $0.195 per 1M and
+  `token`/`generated` at $0.78 per 1M
+- **THEN** its `inputUsdPerMTok` is 0.195, its `outputUsdPerMTok` is 0.78,
+  and `units` additionally keeps the cached-token and tool-`call` rates
+
+#### Scenario: A variants-priced model reports no flat price
+- **WHEN** an image row has `kind: "variants"`, `variable: true` and a
+  `generation` unit whose `price` is null
+- **THEN** `usdPerImage` is null, `units` is empty, and `variable` is true
+
+#### Scenario: An unpriced row projects the empty shape
+- **WHEN** a row carries no `pricing`
+- **THEN** its `pricing` is the same object with null rates, empty
+  `units`, and `variable`/`tiered` false
 
 #### Scenario: A malformed roster does not fail the run
 - **WHEN** the roster contains scalars, nulls, rows with no `id` and rows

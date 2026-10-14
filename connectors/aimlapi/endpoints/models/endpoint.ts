@@ -1,4 +1,5 @@
 import { defineEndpoint, UsageModelKind } from "@shared/core";
+import { zModelsQueryParams } from "./schema/inputs.ts";
 
 /**
  * AI/ML API `GET /v1/models` — the live model roster, free.
@@ -28,6 +29,27 @@ import { defineEndpoint, UsageModelKind } from "@shared/core";
  * ONE type, and one engine run is one request, so a caller-chosen type
  * would make the two-type chat family unrepresentable and silently empty
  * the arrays this endpoint's output contract promises.
+ *
+ * PRICES. `?include=pricing` is pinned at the binding (see
+ * `schema/inputs.ts`), because the gateway publishes a full rate card on
+ * this same endpoint and it is the only machine-readable one it has: every
+ * row then carries `pricing: {currency, kind, units[], thresholds[],
+ * dimensions[], variants[], variable}`, each unit a `price` over a `per`.
+ * The projection normalizes that to the price of ONE unit (`price / per`)
+ * and names the two rates a caller actually chooses a model on — input and
+ * output per 1M tokens for chat, per-image for image models.
+ *
+ * Three shapes in that card the projection does NOT flatten, and says so
+ * through `kind` and `variable` rather than guessing:
+ *   - `kind: "variants"` (e.g. `x-ai/grok-imagine-image-2.0`) prices the
+ *     unit through a `variants[]` matrix over `dimensions[]` and leaves
+ *     `price: null` on the unit itself — the flat number is then `null`,
+ *     not zero;
+ *   - `thresholds[]` are volume tiers, so a published unit price is the
+ *     headline rate rather than the only one;
+ *   - a model may publish SEVERAL units of one name (tool `call` tiers,
+ *     cache reads and writes). `units` keeps every priced one; the two
+ *     named rates take the first match, which is the headline.
  */
 export default defineEndpoint({
     meta: {
@@ -40,7 +62,8 @@ export default defineEndpoint({
             "`aimlapi#chat/completions`) and `image` (usable with " +
             "`aimlapi#images/generations`), each entry carrying the id, " +
             "the display name, the developer, the context length where " +
-            "published and the model's own docs link. The gateway mixes " +
+            "published, the model's own docs link and its PRICE as the " +
+            "gateway publishes it. The gateway mixes " +
             "every endpoint family into one list and distinguishes them " +
             "only by an internal `type`, with the same id appearing under " +
             "more than one type — this endpoint resolves that and " +
@@ -57,9 +80,16 @@ export default defineEndpoint({
             "`counts.chatRows`/`counts.imageRows` are the raw row counts " +
             "and `counts.chat`/`counts.image` the de-duplicated ones — " +
             "when they differ, an id was published under two types.",
+            "Prices come from the gateway's own card and are per ONE " +
+            "unit, with `inputUsdPerMTok`/`outputUsdPerMTok` on chat rows " +
+            "and `usdPerImage` on image rows. They are the headline rate: " +
+            "`pricing.kind` and `pricing.variable` say when a model " +
+            "prices through a variant matrix instead (then the flat " +
+            "number is `null`) or carries volume thresholds.",
         ],
     },
     request: { method: "GET", path: "/models" },
+    input: { schema: { queryParams: zModelsQueryParams } },
     usage: { model: { kind: UsageModelKind.FREE } },
     output: {
         /**
@@ -100,6 +130,76 @@ export default defineEndpoint({
                     const info = row.info;
                     const described = typeof info === "object" &&
                         info !== null && !Array.isArray(info);
+                    // The vendor's card, normalized to the price of ONE
+                    // unit. A unit with no numeric price is DROPPED rather
+                    // than read as free — that is the `kind: "variants"`
+                    // shape, where the price lives in `variants[]` and the
+                    // `variable` flag below is what says so.
+                    const card = row.pricing;
+                    const priced = typeof card === "object" &&
+                        card !== null && !Array.isArray(card);
+                    const rawUnits = priced && Array.isArray(card.units)
+                        ? card.units
+                        : [];
+                    const units: {
+                        name: string | null;
+                        origin: string | null;
+                        usdPerUnit: number;
+                    }[] = [];
+                    for (const raw of rawUnits) {
+                        if (
+                            typeof raw !== "object" || raw === null ||
+                            Array.isArray(raw)
+                        ) continue;
+                        const price = raw.price;
+                        const per = raw.per;
+                        if (
+                            typeof price !== "number" ||
+                            typeof per !== "number" || per <= 0
+                        ) continue;
+                        units.push({
+                            name: typeof raw.name === "string"
+                                ? raw.name
+                                : null,
+                            origin: typeof raw.origin === "string"
+                                ? raw.origin
+                                : null,
+                            usdPerUnit: price / per,
+                        });
+                    }
+                    // First match is the HEADLINE rate: a model may publish
+                    // several units of one name (tool `call` tiers), and
+                    // `units` above keeps all of them.
+                    const rate = (
+                        name: string,
+                        origin: string,
+                        scale: number,
+                    ) => {
+                        for (const unit of units) {
+                            if (unit.name === name && unit.origin === origin) {
+                                return unit.usdPerUnit * scale;
+                            }
+                        }
+                        return null;
+                    };
+                    const pricing = {
+                        currency: priced && typeof card.currency === "string"
+                            ? card.currency
+                            : null,
+                        // `fixed` | `variable` | `variants` — the vendor's
+                        // own word for how the price is formed
+                        kind: priced && typeof card.kind === "string"
+                            ? card.kind
+                            : null,
+                        // true ⇒ the flat numbers below are not the whole
+                        // price: it moves with the request (size, variant)
+                        variable: priced && card.variable === true,
+                        // volume tiers exist ⇒ a flat number is the
+                        // headline, not the only rate
+                        tiered: priced && Array.isArray(card.thresholds) &&
+                            card.thresholds.length > 0,
+                        units,
+                    };
                     const entry = {
                         id,
                         name: described && typeof info.name === "string"
@@ -117,8 +217,39 @@ export default defineEndpoint({
                             ? info.docsUrl
                             : null,
                     };
-                    if (isChat) chat.push(entry);
-                    else image.push(entry);
+                    if (isChat) {
+                        chat.push({
+                            ...entry,
+                            pricing: {
+                                ...pricing,
+                                // the two rates a chat model is chosen on,
+                                // in the unit the vendor publishes them in
+                                inputUsdPerMTok: rate(
+                                    "token",
+                                    "provided",
+                                    1_000_000,
+                                ),
+                                outputUsdPerMTok: rate(
+                                    "token",
+                                    "generated",
+                                    1_000_000,
+                                ),
+                            },
+                        });
+                    } else {
+                        image.push({
+                            ...entry,
+                            pricing: {
+                                ...pricing,
+                                // per-generation price where the model
+                                // publishes one; null for the megapixel-
+                                // and token-priced models, whose charge
+                                // scales with a size this roster does not
+                                // know
+                                usdPerImage: rate("generation", "generated", 1),
+                            },
+                        });
+                    }
                 }
             }
             return {

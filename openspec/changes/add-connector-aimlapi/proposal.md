@@ -61,6 +61,22 @@ engine capability.
   the hold. Neither is a billing error — the D27 settle replaces the hold
   with the gateway's own claim — but a run can stop on an exhausted
   hold.
+- **PRICES COME FROM THE VENDOR, through `aimlapi#models`.** The same
+  endpoint that lists the roster publishes the card, so `include=pricing`
+  is pinned as a `z.literal` default on the binding (not `all`, which
+  triples the payload for fields nothing projects; not an open string,
+  which the gateway would ignore and quietly null every price). Each entry
+  gets `pricing: {currency, kind, variable, tiered, units[]}` with
+  `usdPerUnit = price / per`, plus the two rates a model is actually
+  chosen on — `inputUsdPerMTok`/`outputUsdPerMTok` for chat,
+  `usdPerImage` for image. Three shapes are flagged rather than
+  flattened: `kind: "variants"` prices through a matrix and leaves the
+  unit's `price` null (the flat number is then null, never zero),
+  `thresholds[]` are volume tiers, and a model may publish several units
+  of one name (tool `call` tiers) — `units` keeps them all. The parameter
+  is undocumented upstream, so the live test asserts that at least 90% of
+  the chat roster comes back priced: if the gateway stops honouring it,
+  that fails loudly instead of nulling every price in silence.
 - **No model name is pinned anywhere.** `aimlapi#models` reports the live
   roster instead. That endpoint is also where the gateway's one real
   modelling trap is handled: the list mixes every endpoint family and the
@@ -128,11 +144,10 @@ engine capability.
   publishes an `anthropic/messages` row also publishes an
   `openai/chat-completions` one, so the OpenAI-compatible path reaches
   all of them; batches are an async protocol of their own.
-- **A pinned per-model rate card** — the card exists and is read to set
-  the ceilings above, but 365 chat models whose prices move would be
-  stale on arrival in the source tree. `aimlapi#models` reports the live
-  roster; exposing each row's `pricing` through it is a natural follow-up
-  and deliberately not in this change.
+- **A pinned per-model rate card** — the card exists and is read both to
+  set the ceilings above and, live, through `aimlapi#models`; what is not
+  done is COPYING it into the source tree, where 365 models whose prices
+  move would be stale on arrival.
 
 ## Impact
 
