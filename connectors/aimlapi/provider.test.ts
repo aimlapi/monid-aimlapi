@@ -16,8 +16,9 @@ import { applyAuth, directTransport, Engine } from "@monid/connector-engine";
  *      (`notapi.aimlapi.com`), a userinfo trick
  *      (`https://api.aimlapi.com@evil.example`), a configured base-url
  *      override, and every OTHER connector in the catalog;
- *   3. the partner id ships EMPTY and the header is omitted while it is,
- *      and the literal cannot be filled in with a malformed value.
+ *   3. the partner id is monid's registered one, it reaches the gateway
+ *      and nowhere else, an EMPTY literal omits the header rather than
+ *      sending it blank, and a malformed literal cannot ship.
  *
  * Part 2 is why the headers hang off `auth.inject` rather than
  * `request.headers`: static headers would egress to whatever host the
@@ -30,6 +31,10 @@ import { applyAuth, directTransport, Engine } from "@monid/connector-engine";
 
 const CHAT = "aimlapi#chat/completions";
 const GATEWAY = "https://api.aimlapi.com/v1/chat/completions";
+
+/** monid's partner id, minted by AI/ML API on 2026-10-15. It is sent ONLY
+ *  to the gateway host; every look-alike below must come back without it. */
+const PARTNER_ID = "part_pMK3e60XT8WaIHr827sULMKZ";
 
 const CHAT_BODY = {
     model: "openai/gpt-4o-mini",
@@ -140,9 +145,8 @@ Deno.test(`aimlapi wire: the request that reaches the gateway, headers and all`,
         "https://github.com/monid-ai/monid",
     );
     assertEquals(sent.headers.get(TITLE), "Monid");
-    // the partner id is not minted yet, so the header is NOT sent —
-    // never sent blank
-    assertEquals(sent.headers.has(PARTNER), false);
+    // the partner id, on the wire, to the gateway host only
+    assertEquals(sent.headers.get(PARTNER), PARTNER_ID);
 });
 
 Deno.test(`aimlapi attribution: present for the gateway host, on every endpoint`, async () => {
@@ -172,7 +176,7 @@ Deno.test(`aimlapi attribution: present for the gateway host, on every endpoint`
             id,
         );
         assertEquals(headers["X-Title"], "Monid", id);
-        assertEquals("X-AIMLAPI-Partner-ID" in headers, false, id);
+        assertEquals(headers["X-AIMLAPI-Partner-ID"], PARTNER_ID, id);
         assertEquals(headers.Authorization, "Bearer test-key", id);
     }
 });
@@ -282,7 +286,7 @@ Deno.test(`aimlapi attribution: ABSENT from every other connector's wire`, async
     }
 });
 
-Deno.test(`aimlapi attribution: the partner id ships empty and is held to its format`, async () => {
+Deno.test(`aimlapi attribution: the registered partner id, held to its format`, async () => {
     const unit = await testSealedUnit(CHAT);
     const entry = unit.fns[unit.doc.auth.inject.$fn.key];
     assertEquals(
@@ -296,30 +300,31 @@ Deno.test(`aimlapi attribution: the partner id ships empty and is held to its fo
     assert(match !== null, "no partnerId literal in the compiled inject fn");
     const partnerId = match[1];
 
-    // empty today (AI/ML API has not minted one for monid); filling it in
-    // is this one literal, and it must look like a partner id
+    // monid's registered id, and nothing but a well-formed partner id can
+    // ever sit here — an empty literal (the pre-registration state) stays
+    // legal because it omits the header entirely
+    assertEquals(partnerId, PARTNER_ID);
     assert(
         partnerId === "" || /^part_[A-Za-z0-9]{1,64}$/.test(partnerId),
         `partnerId ${JSON.stringify(partnerId)} is neither empty nor ` +
             `^part_[A-Za-z0-9]{1,64}$`,
     );
 
-    // while it is empty the header must not be sent at all (not blank)
+    // it is sent for the gateway, with that exact value
     const headers = await injectedHeaders(unit, GATEWAY);
-    assertEquals(
-        "X-AIMLAPI-Partner-ID" in headers,
-        partnerId !== "",
-    );
+    assertEquals(headers["X-AIMLAPI-Partner-ID"], PARTNER_ID);
 
-    // the OTHER half of the claim: filling the literal in is all it
-    // takes. Run the compiled source with a minted id substituted — same
-    // fn, one literal changed — and the header appears, gated the same way.
-    const minted = entry.src.replace(
+    // the OTHER half of the claim: the id lives in ONE literal and the
+    // gate does not depend on its value. Run the compiled source with the
+    // literal EMPTIED — same fn, one literal changed — and the header is
+    // omitted rather than sent blank, while the rest of the attribution
+    // still rides.
+    const emptied = entry.src.replace(
         /const partnerId\s*=\s*"[^"]*"/,
-        'const partnerId = "part_monid01"',
+        'const partnerId = ""',
     );
-    assert(minted !== entry.src, "the substitution did not apply");
-    const withId = new Function(`"use strict"; return (${minted});`)() as (
+    assert(emptied !== entry.src, "the substitution did not apply");
+    const withId = new Function(`"use strict"; return (${emptied});`)() as (
         ctx: {
             data: {
                 request: Record<string, Json>;
@@ -333,7 +338,8 @@ Deno.test(`aimlapi attribution: the partner id ships empty and is held to its fo
             params: { apiKey: "test-key" },
         },
     });
-    assertEquals(atGateway.headers["X-AIMLAPI-Partner-ID"], "part_monid01");
+    assertEquals("X-AIMLAPI-Partner-ID" in atGateway.headers, false);
+    assertEquals(atGateway.headers["X-AIMLAPI-Source"], "agent/monid");
     const atLookAlike = withId({
         data: {
             request: {

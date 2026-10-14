@@ -42,12 +42,13 @@ import { defineProvider } from "@shared/core";
  *      string ops (scheme → authority → userinfo → port), and anything
  *      unparseable (no scheme, bracketed IPv6 literal) falls through to
  *      the bare, unattributed request.
- *   3. The partner id is MINTED BY AI/ML API and does not exist for monid
- *      yet, so `partnerId` ships EMPTY and the header is omitted entirely
- *      while it is — never sent blank. Filling it in is a ONE-LINE change
- *      to the literal below; `provider.test.ts` reads that literal back
- *      out of the compiled fn source and holds it to
- *      `^$|^part_[A-Za-z0-9]{1,64}$`, so a malformed id cannot ship.
+ *   3. The partner id is MINTED BY AI/ML API, registered for monid on
+ *      2026-10-15, and sent only to the gateway host by the same gate.
+ *      An EMPTY literal omits the header entirely rather than sending it
+ *      blank, which is what shipped before the id existed;
+ *      `provider.test.ts` reads the literal back out of the compiled fn
+ *      source and holds it to `^$|^part_[A-Za-z0-9]{1,64}$`, so a
+ *      malformed id cannot ship.
  */
 export default defineProvider({
     name: "aimlapi",
@@ -108,7 +109,7 @@ export default defineProvider({
             }
             // ONE-LINE change when AI/ML API mints monid's partner id;
             // empty means the header is not sent at all.
-            const partnerId = "";
+            const partnerId = "part_pMK3e60XT8WaIHr827sULMKZ";
             return {
                 ...data.request,
                 headers: {
