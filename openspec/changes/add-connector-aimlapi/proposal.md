@@ -35,22 +35,32 @@ engine capability.
   fnTable entry. `pluck` is used rather than `omit` on purpose: the chat
   envelope also carries a top-level `usage` of token counts, which is the
   caller's and must survive.
-- **Holds are CONNECTOR-OWNED CEILINGS, said so in the doc.** AI/ML API
-  publishes no machine-readable rate card: there is no price field on
-  `GET /v1/models`, none in `docs-json`, and no pricing endpoint
-  (`/models/metrics` is latency only) — all checked 2026-10-15. So
-  nothing here pins a per-model token table that would be stale on
-  arrival. `chat/completions` requires `max_tokens` at the binding (the
-  primary limiting knob — D25) and holds input at $200/1M and output at
-  $800/1M, over prompt UTF-8 bytes + 1,000 tokens of gateway overhead +
-  8,000 tokens per image part, times `n` on the output half.
-  `images/generations` holds $1.00 per requested image. Both are above
-  anything the gateway charges; the settle trues down to the reported
-  claim, so a generous hold costs headroom and never money. This is the
-  one number in the connector that is OUR assertion rather than the
-  vendor's, and it is guarded the way the repo guards vendors without a
-  machine-readable surface: test:live plus the per-run D27 mismatch
-  signal.
+- **Holds are CEILINGS DERIVED FROM THE VENDOR'S OWN CARD.** AI/ML API
+  publishes a machine-readable rate card, and it needs no key:
+  `GET /v1/models?include=all` (equally `?include=pricing`) returns a
+  `pricing` object on every one of the 932 rows — `units[]`, each with a
+  `price` over a `per`, plus `kind`, `thresholds`, `dimensions` and
+  `variants`. `docs-json` documents no query parameters for that path, so
+  the parameter is undocumented but live and complete (checked
+  2026-10-15). A per-model table is still not pinned here — 365 chat
+  models and a card that moves — but the two ceilings are read off that
+  card rather than asserted: across `openai/chat-completions` and
+  `anthropic/messages` the dearest is `openai/o1-pro`, $206.31/1M input
+  and $825.24/1M output, i.e. 412.62 and 1,650.48 credits per token, and
+  the hold rounds up to 500 and 2,000 (~21% margin, so a price rise
+  between releases does not silently under-hold). It is priced over
+  prompt UTF-8 bytes + 1,000 tokens of gateway overhead + 8,000 tokens
+  per image part, times `n` on the output half, with `max_tokens`
+  required at the binding (the primary limiting knob — D25).
+  `images/generations` holds $1.50 per requested image against a dearest
+  published per-generation price of $1.04 (`meshy/meshy-6-image-to-3d`).
+  Two dimensions a per-request hold cannot bound are stated in the doc
+  comments rather than hidden: tool `call` charges on chat (up to $0.065
+  each, count unknowable before the run) and the 43 image models priced
+  per `megapixel` or output `token`, where a very large render scales past
+  the hold. Neither is a billing error — the D27 settle replaces the hold
+  with the gateway's own claim — but a run can stop on an exhausted
+  hold.
 - **No model name is pinned anywhere.** `aimlapi#models` reports the live
   roster instead. That endpoint is also where the gateway's one real
   modelling trap is handled: the list mixes every endpoint family and the
@@ -118,8 +128,11 @@ engine capability.
   publishes an `anthropic/messages` row also publishes an
   `openai/chat-completions` one, so the OpenAI-compatible path reaches
   all of them; batches are an async protocol of their own.
-- **A pinned per-model rate card** — see above: there is nothing
-  machine-readable to pin or to drift against.
+- **A pinned per-model rate card** — the card exists and is read to set
+  the ceilings above, but 365 chat models whose prices move would be
+  stale on arrival in the source tree. `aimlapi#models` reports the live
+  roster; exposing each row's `pricing` through it is a natural follow-up
+  and deliberately not in this change.
 
 ## Impact
 

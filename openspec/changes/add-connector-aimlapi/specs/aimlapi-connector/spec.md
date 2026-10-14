@@ -76,11 +76,15 @@ per unit whose evidence is `meta.usage.credits_used` read off the raw
 envelope (0 when absent), so the derived fold equals the consolidated
 dollar claim. Its binding SHALL require `max_tokens` and default `n` to
 1. Its estimate SHALL be, in credits,
-`(bytes + 1000 + 8000 x images) x 400 + max_tokens x n x 1600`, where
+`(bytes + 1000 + 8000 x images) x 500 + max_tokens x n x 2000`, where
 `bytes` counts the UTF-8 bytes of text parts, assistant `tool_calls`,
-`tools` and `response_format`, and `images` counts image parts. That
-estimate is a connector-owned CEILING, not a vendor-published rate, and
-SHALL be documented as such.
+`tools` and `response_format`, and `images` counts image parts. Those two
+rates are a CEILING over every chat model rather than the chosen model's
+own rate, derived from the vendor's published card
+(`GET /v1/models?include=all`, `pricing.units[]`, dearest chat model
+`openai/o1-pro` at 412.62 and 1,650.48 credits per token on 2026-10-15)
+and rounded up for margin. The derivation SHALL be documented where the
+rates are set.
 
 #### Scenario: Plain completion settle
 - **WHEN** a run returns 200 with
@@ -91,7 +95,7 @@ SHALL be documented as such.
 
 #### Scenario: The hold covers the settle
 - **WHEN** a 61-byte prompt with `max_tokens: 40` settles at 21 credits
-- **THEN** the estimate is `(61 + 1000) x 400 + 40 x 1600` credits and is
+- **THEN** the estimate is `(61 + 1000) x 500 + 40 x 2000` credits and is
   greater than the settled credits
 
 #### Scenario: Unbounded request rejected
@@ -102,7 +106,8 @@ SHALL be documented as such.
 `images/generations` SHALL meter the same PER_UNIT `CREDIT` line from
 `meta.usage.credits_used` — a byte-identical `usage.evidence` interning
 to one fnTable entry with `chat/completions` — and SHALL estimate
-2,000,000 credits ($1.00, a connector-owned ceiling) per requested image,
+3,000,000 credits ($1.50, a ceiling over the dearest per-generation price
+on the vendor's published card) per requested image,
 counted as the greater of `n` and `num_images`, each defaulting to the
 vendor's own 1. Its body SHALL be a loose mirror requiring only `model`
 and `prompt`, so model-specific keys ride through unvalidated, and SHALL

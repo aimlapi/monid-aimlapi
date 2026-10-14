@@ -61,30 +61,31 @@ Deno.test(`${ID} the meter is a GATEWAY fact: one interned evidence fn serves bo
     );
 });
 
-Deno.test(`${ID} estimate: the pinned $1.00-per-image ceiling, counted off either spelling`, async () => {
+Deno.test(`${ID} estimate: the pinned $1.50-per-image ceiling, counted off either spelling`, async () => {
     const unit = await testSealedUnit(ID);
-    // $1.00 = 2,000,000 credits per image
+    // $1.50 = 3,000,000 credits per image: the dearest per-generation
+    // price on the vendor's published card ($1.04) rounded up
     assertEquals(await estimateEndpoint(unit, { body }), {
-        credits: { default: 1 },
-        evidence: { CREDIT: 2_000_000 },
+        credits: { default: 1.5 },
+        evidence: { CREDIT: 3_000_000 },
     });
     // no count knob at all: the vendor default of 1 holds for one image
     const bare = await estimateEndpoint(unit, {
         body: { model: "google/gemini-nano-banana-2.1", prompt: "a cube" },
     });
-    assertEquals(bare.evidence, { CREDIT: 2_000_000 });
+    assertEquals(bare.evidence, { CREDIT: 3_000_000 });
     // the fal-shaped spelling
     assertEquals(
         (await estimateEndpoint(unit, { body: { ...body, num_images: 4 } }))
             .evidence,
-        { CREDIT: 8_000_000 },
+        { CREDIT: 12_000_000 },
     );
     // the OpenAI-shaped spelling
     assertEquals(
         (await estimateEndpoint(unit, {
             body: { model: "openai/gpt-image-2", prompt: "a cube", n: 3 },
         })).evidence,
-        { CREDIT: 6_000_000 },
+        { CREDIT: 9_000_000 },
     );
     // both present: the hold takes the larger, since the gateway decides
     // which one the chosen model reads
@@ -92,7 +93,7 @@ Deno.test(`${ID} estimate: the pinned $1.00-per-image ceiling, counted off eithe
         (await estimateEndpoint(unit, {
             body: { ...body, n: 2, num_images: 4 },
         })).evidence,
-        { CREDIT: 8_000_000 },
+        { CREDIT: 12_000_000 },
     );
 });
 
@@ -169,7 +170,7 @@ Deno.test(`${ID} schema gate: model and prompt are required, model-specific keys
             num_inference_steps: 28,
         },
     });
-    assertEquals(estimate.evidence, { CREDIT: 2_000_000 });
+    assertEquals(estimate.evidence, { CREDIT: 3_000_000 });
 });
 
 Deno.test({

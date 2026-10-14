@@ -62,10 +62,12 @@ Deno.test(`${ID} estimate: the hold is the pinned ceiling and covers the recorde
         mode: "replay",
         fixture: await loadFixture(`${chains}chat-ok.json`),
     });
-    // 61 prompt bytes + 1,000 tokens of gateway overhead at 400 credits
-    // per token ($200/1M), plus 40 output tokens x n=1 at 1,600 ($800/1M)
+    // 61 prompt bytes + 1,000 tokens of gateway overhead at 500 credits
+    // per token, plus 40 output tokens x n=1 at 2,000. Both rates are the
+    // dearest chat model on the vendor's published card rounded up
+    // (openai/o1-pro: 412.62 in, 1,650.48 out — see the endpoint doc).
     assertEquals(hold.evidence, {
-        CREDIT: (PROMPT_BYTES + 1_000) * 400 + 40 * 1_600,
+        CREDIT: (PROMPT_BYTES + 1_000) * 500 + 40 * 2_000,
     });
     // 21 credits were actually billed — three orders of magnitude inside
     // the hold, which is the point of a ceiling
@@ -93,7 +95,7 @@ Deno.test(`${ID} estimate: tools, schemas, images and n raise the hold`, async (
     });
     assertEquals(
         (withTools.evidence.CREDIT ?? 0) - (base.evidence.CREDIT ?? 0),
-        JSON.stringify(tools).length * 400,
+        JSON.stringify(tools).length * 500,
     );
     const withImage = await estimateEndpoint(unit, {
         body: {
@@ -113,14 +115,14 @@ Deno.test(`${ID} estimate: tools, schemas, images and n raise the hold`, async (
     // the image URL is not counted as text; the image is 8,000 tokens
     assertEquals(
         withImage.evidence.CREDIT,
-        ("What is in this image?".length + 1_000 + 8_000) * 400 +
-            40 * 1_600,
+        ("What is in this image?".length + 1_000 + 8_000) * 500 +
+            40 * 2_000,
     );
     // n multiplies the OUTPUT half only
     const withN = await estimateEndpoint(unit, { body: { ...body, n: 3 } });
     assertEquals(
         (withN.evidence.CREDIT ?? 0) - (base.evidence.CREDIT ?? 0),
-        2 * 40 * 1_600,
+        2 * 40 * 2_000,
     );
 });
 
