@@ -33,15 +33,16 @@ hostname — never a substring, prefix or suffix test — after stripping any
 userinfo and port, lowercased; a url with no scheme separator or a
 bracketed IPv6 authority SHALL be treated as not matching. It SHALL
 ALSO inject `X-AIMLAPI-Partner-ID` when, and only when, the connector's
-partner-id constant is non-empty; the constant SHALL ship empty and SHALL
-be either empty or match `^part_[A-Za-z0-9]{1,64}$`.
+partner-id constant is non-empty; the constant SHALL ship as monid's
+registered partner id and SHALL be either empty or match
+`^part_[A-Za-z0-9]{1,64}$`.
 
 #### Scenario: The gateway is attributed
 - **WHEN** a run's resolved destination is
   `https://api.aimlapi.com/v1/chat/completions`
 - **THEN** the egressing request carries `X-AIMLAPI-Source`,
-  `HTTP-Referer` and `X-Title`, and no `X-AIMLAPI-Partner-ID` while the
-  constant is empty
+  `HTTP-Referer`, `X-Title` and `X-AIMLAPI-Partner-ID` with monid's
+  registered partner id
 
 #### Scenario: A look-alike host is not attributed
 - **WHEN** the resolved destination is
@@ -63,12 +64,12 @@ be either empty or match `^part_[A-Za-z0-9]{1,64}$`.
 - **THEN** none of the four headers appears on its wire, and no other
   compiled doc shares aimlapi's `auth.inject` fn
 
-#### Scenario: Filling the partner id in is one literal
+#### Scenario: Emptying the partner id is one literal
 - **WHEN** the compiled inject fn's partner-id literal is replaced with
-  `part_monid01`
-- **THEN** a gateway-bound request carries
-  `X-AIMLAPI-Partner-ID: part_monid01` and a look-alike-bound request
-  still carries none
+  an empty string
+- **THEN** a gateway-bound request carries the other attribution headers
+  and no `X-AIMLAPI-Partner-ID`, and a look-alike-bound request still
+  carries none
 
 ### Requirement: Chat billed at the gateway's own credit meter
 `chat/completions` SHALL meter one PER_UNIT `CREDIT` line at $0.0000005

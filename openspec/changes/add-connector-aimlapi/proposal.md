@@ -91,8 +91,9 @@ engine capability.
   would make the two-type chat family unrepresentable.
 - **Attribution, gated on the DESTINATION.** Requests that reach the
   gateway carry `X-AIMLAPI-Source: agent/monid`, `HTTP-Referer` (this
-  repo) and `X-Title: Monid`, plus `X-AIMLAPI-Partner-ID` once AI/ML API
-  mints an id for monid. The headers ride on `auth.inject`, not
+  repo) and `X-Title: Monid`, plus `X-AIMLAPI-Partner-ID` carrying the
+  partner id AI/ML API registered for monid. The headers ride on
+  `auth.inject`, not
   `request.headers`: static headers are attached by the compiler and
   would egress to WHATEVER host the resolved url names, whereas
   `auth.inject` is the last hook before the wire and the only one handed
@@ -101,10 +102,10 @@ engine capability.
   substring or suffix test, which would hand the partner id to
   `api.aimlapi.com.example.net`. `URL` is not a whitelisted closed-term
   global, so the authority is cut out with string ops and anything
-  unparseable falls through unattributed. The partner id ships EMPTY and
-  the header is omitted entirely while it is; filling it in is one
-  literal, and a test reads that literal back out of the compiled fn and
-  holds it to `^$|^part_[A-Za-z0-9]{1,64}$`.
+  unparseable falls through unattributed. The partner id is one literal;
+  a test reads it back out of the compiled fn, pins it to monid's
+  registered id and holds it to `^$|^part_[A-Za-z0-9]{1,64}$`, and an
+  empty literal omits the header entirely rather than sending it blank.
 - **Faithful mirrors, scoped.** `chat/completions` mirrors the
   OpenAI-compatible body with optionality only; `n` is defaulted to 1 at
   the binding (verified vendor default). `images/generations` is a
@@ -118,7 +119,7 @@ engine capability.
 - **Category** — new leaf `text-generation` in `connectors/categories.ts`
   (the GENERATIVE group, beside `image-generation`), since no existing
   leaf names an LLM completion.
-- Real recorded fixtures as provider-level shared chains (7) with
+- Real recorded fixtures as provider-level shared chains (8) with
   `{{request.url}}` bindings, plus replay, schema-gate, attribution and
   gated-live tests.
 
