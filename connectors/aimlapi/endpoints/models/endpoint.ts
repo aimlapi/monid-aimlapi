@@ -1,4 +1,5 @@
 import { defineEndpoint, UsageModelKind } from "@shared/core";
+import { z } from "zod";
 import { zModelsQueryParams } from "./schema/inputs.ts";
 
 /**
@@ -30,8 +31,8 @@ import { zModelsQueryParams } from "./schema/inputs.ts";
  * would make the two-type chat family unrepresentable and silently empty
  * the arrays this endpoint's output contract promises.
  *
- * PRICES. `?include=pricing` is pinned at the binding (see
- * `schema/inputs.ts`), because the gateway publishes a full rate card on
+ * PRICES. `?include=pricing` is pinned at the binding (the vendor's
+ * full set of expansions is mirrored in `schema/inputs.ts`), because the gateway publishes a full rate card on
  * this same endpoint and it is the only machine-readable one it has: every
  * row then carries `pricing: {currency, kind, units[], thresholds[],
  * dimensions[], variants[], variable}`, each unit a `price` over a `per`.
@@ -89,7 +90,24 @@ export default defineEndpoint({
         ],
     },
     request: { method: "GET", path: "/models" },
-    input: { schema: { queryParams: zModelsQueryParams } },
+    input: {
+        schema: {
+            // The vendor accepts several expansions (see schema/inputs.ts);
+            // this endpoint's output is built on exactly ONE of them, so the
+            // binding pins it. `all` would triple the payload (1.66 MB against
+            // 0.52 MB bare) for fields nothing here projects, and the default
+            // means a caller never has to pass it — the binding materializes
+            // it on the wire.
+            queryParams: zModelsQueryParams.extend({
+                include: z.literal("pricing").default("pricing").describe(
+                    "Gateway expansion to request. Only `pricing` is " +
+                        "accepted here: it is what makes each row carry " +
+                        "its rate card, and it is the expansion this " +
+                        "endpoint's output is built on.",
+                ),
+            }),
+        },
+    },
     usage: { model: { kind: UsageModelKind.FREE } },
     output: {
         /**

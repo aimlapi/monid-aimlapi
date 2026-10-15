@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { fromFileUrl } from "@std/path";
 import {
     liveSkip,
@@ -6,13 +6,10 @@ import {
     runEndpoint,
     testSealedUnit,
 } from "@shared/testing";
+import { zModelsQueryParams } from "./schema/inputs.ts";
 
 const ID = "aimlapi#models";
 const chains = fromFileUrl(new URL("../../fixtures/", import.meta.url));
-
-/** The chat-family types the gateway publishes, and the ONLY two. */
-const CHAT_TYPES = ["openai/chat-completions", "anthropic/messages"];
-const IMAGE_TYPE = "openai/image-generations";
 
 Deno.test(`${ID} happy (recorded): families split by type, chat ids MERGED across the two chat types`, async () => {
     const unit = await testSealedUnit(ID);
@@ -159,6 +156,49 @@ Deno.test(`${ID} prices: the vendor's card, normalized to one unit`, async () =>
     });
 });
 
+Deno.test(`${ID} schema gate: only the pinned expansion is accepted, and it passes`, async () => {
+    const unit = await testSealedUnit(ID);
+    const fixture = await loadFixture(`${chains}models-ok.json`);
+    // the vendor accepts these, but this endpoint's output is not built on
+    // them: `all` triples the payload, the others drop the rate card
+    for (const include of ["all", "capabilities", "pricing,capabilities"]) {
+        await assertRejects(
+            () =>
+                runEndpoint({
+                    unit,
+                    input: { queryParams: { include } },
+                    mode: "replay",
+                    fixture,
+                }),
+            Error,
+            "INVALID_INPUT",
+            include,
+        );
+    }
+    // ...while the VENDOR mirror itself accepts what the gateway accepts,
+    // including combinations, and refuses a name it would silently ignore
+    for (const include of ["pricing", "all", "pricing,capabilities"]) {
+        assertEquals(zModelsQueryParams.safeParse({ include }).success, true);
+    }
+    for (const include of ["pricng", "", "pricing,", "pricing capabilities"]) {
+        assertEquals(zModelsQueryParams.safeParse({ include }).success, false);
+    }
+    // the near-twin: the pinned value, passed explicitly, reaches the replay
+    const pinned = await runEndpoint({
+        unit,
+        input: { queryParams: { include: "pricing" } },
+        mode: "replay",
+        fixture,
+    });
+    assertEquals(pinned.httpStatus, 200);
+    assertEquals((pinned.output as Record<string, unknown>).counts, {
+        chat: 4,
+        chatRows: 5,
+        image: 2,
+        imageRows: 2,
+    });
+});
+
 Deno.test(`${ID} empty and malformed rows: the projection never throws`, async () => {
     const unit = await testSealedUnit(ID);
     const result = await runEndpoint({
@@ -290,8 +330,42 @@ Deno.test({
                 "number"
         );
         assertEquals(perImage.length > 0, true);
-        // ...and the type vocabulary this endpoint keys on still exists
-        assertEquals(CHAT_TYPES.length, 2);
-        assertEquals(IMAGE_TYPE, "openai/image-generations");
+
+        // DRIFT GUARD on the pre-run holds. The chat and image estimates are
+        // ceilings read off this same card on 2026-10-15 and rounded up; no
+        // other test re-derives them. If the vendor raises a price past one,
+        // the hold under-reserves (the settle still bills the gateway's own
+        // charge, so the cost is a run that stops early, not a wrong bill) —
+        // and this is where that shows up. Bounds are the holds themselves,
+        // in dollars: credits per unit x $0.0000005 per credit.
+        const CREDIT_USD = 0.0000005;
+        const CHAT_INPUT_CEILING = 500 * CREDIT_USD * 1_000_000; // $250 / 1M
+        const CHAT_OUTPUT_CEILING = 2_000 * CREDIT_USD * 1_000_000; // $1,000 / 1M
+        const IMAGE_CEILING = 3_000_000 * CREDIT_USD; // $1.50 / image
+        for (const row of priced) {
+            const card = row.pricing as Record<string, number>;
+            assertEquals(
+                card.inputUsdPerMTok <= CHAT_INPUT_CEILING,
+                true,
+                `${row.id} input $${card.inputUsdPerMTok}/1M is above the ` +
+                    `$${CHAT_INPUT_CEILING}/1M chat hold`,
+            );
+            assertEquals(
+                card.outputUsdPerMTok <= CHAT_OUTPUT_CEILING,
+                true,
+                `${row.id} output $${card.outputUsdPerMTok}/1M is above the ` +
+                    `$${CHAT_OUTPUT_CEILING}/1M chat hold`,
+            );
+        }
+        for (const row of perImage) {
+            const usdPerImage =
+                (row.pricing as Record<string, number>).usdPerImage;
+            assertEquals(
+                usdPerImage <= IMAGE_CEILING,
+                true,
+                `${row.id} at $${usdPerImage}/image is above the ` +
+                    `$${IMAGE_CEILING} image hold`,
+            );
+        }
     },
 });
